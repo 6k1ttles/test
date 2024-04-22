@@ -23,9 +23,9 @@ app.config['MAIL_USERNAME'] = 'pizzaparadise.staff@yandex.ru'
 app.config['MAIL_PASSWORD'] = 'wwigfvvgjboxmfvt'
 mail = Mail(app)
 MENU = [
-    {"name": "Маргарита", "price": 350, "weight": "300г", "image": 'static\images\pizza\М.jpg'},
-    {"name": "Пепперони", "price": 450, "weight": "400г", "image": 'static\images\pizza\П.jpg'},
-    {"name": "4 сыра", "price": 500, "weight": "450г", "image": 'static\images\pizza\4.jpg'},
+    {"name": "Маргарита", "price": 350, "weight": "300г", "image": 'static/images/pizza/М.jpg'},
+    {"name": "Пепперони", "price": 450, "weight": "400г", "image": 'static/images/pizza/П.jpg'},
+    {"name": "4 сыра", "price": 500, "weight": "450г", "image": 'static/images/pizza/4}.jpg'},
 ]
 
 total_price = 0
