@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block title %}Корзина - PizzaParadise{% endblock %}
+
+{% block content %}
+{% if user_id is none %}
+    <h2 class="error-message">{{ error_message }}</h2>
+{% else %}
+    {% if cart_items %}
+        {% for item in cart_items %}
+            <div class="cart-item">
+                <h3>{{ item.name }}</h3>
+                <!-- Построение пути к изображению на основе первой буквы названия пиццы -->
+                <!-- Проверка наличия изображения -->
+
+                    <img src="{{ item.photo }}" alt="{{ item.name }}" width="200" height="150">
+
+                <p>Количество: {{ item.quantity }}</p>
+                <p>Стоимость: {{ item.price * item.quantity }} руб.</p>
+            </div>
+        {% endfor %}
+        <div class="pizza-cart">
+            <h2>Итого: {{ total_price }} руб.</h2>
+             <form action="{{ url_for('payment') }}" method="post">
+                <input type="hidden" name="total_price" value="{{ total_price }}">
+
+                <input type="submit" value="Оплатить">
+            </form>
+        </div>
+    {% else %}
+        <h2 class="success-message">Корзина пуста</h2>
+    {% endif %}
+{% endif %}
+{% endblock %}

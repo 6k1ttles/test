@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Успешная оплата - PizzaParadise{% endblock %}
+{% block content %}
+<h2 class="success-message">Оплата заказа в размере {{ total_price }} руб. успешно выполнена.</h2>
+<!-- Кнопка для возврата на предыдущую страницу -->
+<form action="/menu" method="get">
+    <div class="text-center mt-3" align="center">
+        <button type="submit" class="btn btn-primary">В меню
+        </button>
+    </div>
+</form>
+
+
+<script>
+    // Функция для перенаправления на страницу меню
+    function redirectToMenu() {
+        window.location.href = '{{ url_for("menu") }}';
+    }
+
+    // Проверяем, была ли страница перезагружена
+    if (performance.navigation.type === 1) {
+        // Если страница была перезагружена, перенаправляем пользователя на страницу меню
+        redirectToMenu();
+    }
+
+    // Обработчик события для перенаправления на страницу меню при попытке вернуться на предыдущую страницу
+    window.addEventListener('popstate', function(event) {
+        redirectToMenu();
+    });
+</script>
+
+{% endblock %}
