@@ -23,9 +23,9 @@ app.config['MAIL_USERNAME'] = 'pizzaparadise.staff@yandex.ru'
 app.config['MAIL_PASSWORD'] = 'wwigfvvgjboxmfvt'
 mail = Mail(app)
 MENU = [
-    {"name": "Маргарита", "price": 350, "weight": "300г", "image": r'static\images\pizza\М.jpg'},
-    {"name": "Пепперони", "price": 450, "weight": "400г", "image": r'static\images\pizza\П.jpg'},
-    {"name": "4 сыра", "price": 500, "weight": "450г", "image": r'static\images\pizza\4.jpg'},
+    {"name": "Маргарита", "price": 350, "weight": "300г", "image": 'static\images\pizza\М.jpg'},
+    {"name": "Пепперони", "price": 450, "weight": "400г", "image": 'static\images\pizza\П.jpg'},
+    {"name": "4 сыра", "price": 500, "weight": "450г", "image": 'static\images\pizza\4.jpg'},
 ]
 
 total_price = 0
@@ -345,8 +345,10 @@ def send_payment_confirmation_email(recipient_email, price):
     for item in cart_data:
         pizza = next((p for p in MENU if p["name"] == item.pizza_name), None)
         if pizza:
+            print(pizza)
             quantity = pizza_quantities.get(item.pizza_name, 0)
             for i in range(quantity):
+                print(pizza['image'])
                 with app.open_resource(pizza["image"]) as fp:
                     filename = f"{pizza['name']}_{i}.jpg"  # Уникальное имя файла для каждого изображения
                     msg.attach(filename, "image/jpg", fp.read())
