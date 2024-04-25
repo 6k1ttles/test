@@ -25,7 +25,7 @@ mail = Mail(app)
 MENU = [
     {"name": "Маргарита", "price": 350, "weight": "300г", "image": 'static/images/pizza/М.jpg'},
     {"name": "Пепперони", "price": 450, "weight": "400г", "image": 'static/images/pizza/П.jpg'},
-    {"name": "4 сыра", "price": 500, "weight": "450г", "image": 'static/images/pizza/4}.jpg'},
+    {"name": "4 сыра", "price": 500, "weight": "450г", "image": 'static/images/pizza/F.jpg'},
 ]
 
 total_price = 0
