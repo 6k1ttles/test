@@ -1,5 +1,4 @@
 from datetime import datetime
-
 from flask import Flask, render_template, request, redirect, url_for, session, flash, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
@@ -27,15 +26,6 @@ MENU = [
     {"name": "Пепперони", "price": 450, "weight": "400г", "image": 'static/images/pizza/П.jpg'},
     {"name": "4 сыра", "price": 500, "weight": "450г", "image": 'static/images/pizza/F.jpg'},
 ]
-
-total_price = 0
-cart_items = []
-promo_in_rub = 0
-new_total_price = 0
-card_num = None
-CVV = None
-expiry_date = None
-paypal_mail = None
 
 PROMO = {"зимняя сказка": 99}
 
@@ -77,7 +67,7 @@ def get_login_reg_buttons(user_id):
 
 def allowed_file(filename):
     return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+        filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 def get_user_id():
@@ -132,22 +122,23 @@ def about():
 @app.route('/reviews')
 def reviews():
     reviews_data = Review.query.join(User).add_columns(Review.id, User.username, Review.author, Review.rating,
-                                                       Review.comment).all()
+                                                       Review.comment).all()[::-1]
     user_id = get_user_id()
     username = first_name = last_name = None
     if user_id:
         username = get_email(user_id)
         first_name, last_name = get_fullname(user_id)
-    print(username)
     review_exists = Review.query.filter_by(user_id=user_id).first() is not None if user_id is not None else False
     return render_template('reviews.html', reviews_data=reviews_data,
                            user_id=user_id, username=username, review_exists=review_exists,
                            none=None, first_name=first_name, last_name=last_name)
 
 
-@app.route('/add_review', methods=['POST'])
+@app.route('/add_review', methods=['POST', 'GET'])
 def add_review():
     user_id = get_user_id()
+    if request.method != 'POST':
+        abort(500)
     if user_id is None:
         return redirect(url_for('reviews'))
     author = (request.form.get("author")).lstrip('Имя пользователя: ')
@@ -161,8 +152,6 @@ def add_review():
 
 @app.route('/cart')
 def cart():
-    global total_price
-    global cart_items
     user_id = get_user_id()
     username = first_name = last_name = None
     if user_id:
@@ -178,8 +167,11 @@ def cart():
     for item in cart_data:
         pizza = next((p for p in MENU if p["name"] == item.pizza_name), None)
         if pizza:
-            cart_items.append({"name": pizza["name"], "price": pizza["price"], "quantity": item.quantity, 'photo': pizza['image']})
+            cart_items.append(
+                {"name": pizza["name"], "price": pizza["price"], "quantity": item.quantity, 'photo': pizza['image']})
             total_price += pizza["price"] * item.quantity
+    session['total_price'] = total_price
+    session['cart_items'] = cart_items
     return render_template('cart.html', user_id=user_id, username=username, cart_items=cart_items,
                            total_price=total_price, first_name=first_name, last_name=last_name)
 
@@ -199,21 +191,17 @@ def get_info():
         return None
 
 
-@app.route('/process_payment', methods=['POST'])
+@app.route('/process_payment', methods=['POST', 'GET'])
 def process_payment():
-    global total_price
-    global CVV
-    global card_num
-    global expiry_date
     user_id = get_user_id()
+    if request.method != 'POST':
+        abort(500)
     username = first_name = last_name = None
     if user_id:
         username = get_email(user_id)
         first_name, last_name = get_fullname(user_id)
     if user_id is None:
-        error_message = 'Ошибка: Для просмотра статуса необходимо выполнить вход.'
-        return render_template('cart.html', user_id=user_id, username=username, error_message=error_message,
-                               none=None, first_name=first_name, last_name=last_name)
+        abort(401)
     if request.method == 'POST':
         data = get_info()
         if data:
@@ -267,39 +255,32 @@ def process_payment():
 
 @app.route('/payment_success', methods=['GET', 'POST'])
 def payment_success():
-    global new_total_price
-    global total_price
     user_id = get_user_id()
     username = first_name = last_name = None
     if user_id:
         username = get_email(user_id)
         first_name, last_name = get_fullname(user_id)
-    user = User.query.get(user_id)
-    if new_total_price:
-        price = new_total_price
-    else:
-        price = total_price
-    if not session['payment_confirmation_sent']:
-        send_payment_confirmation_email(user.username, price)
-        session['payment_confirmation_sent'] = True  # Устанавливаем флаг в сессии
-    return render_template('payment_success.html', user_id=user_id, username=username,
-                           total_price=price, first_name=first_name, last_name=last_name)
+        user = User.query.get(user_id)
+        if not session['payment_confirmation_sent']:
+            send_payment_confirmation_email(user.username, session.get('new_total_price', session.get('total_price')))
+            session['payment_confirmation_sent'] = True  # Устанавливаем флаг в сессии
+        session['promo_in_rub'] = 0
+        return render_template('payment_success.html', user_id=user_id, username=username,
+                               total_price=session.get('new_total_price', session.get('total_price')),
+                               first_name=first_name, last_name=last_name)
+    if user_id is None:
+        abort(401)
 
 
-@app.route('/apply_promo_code', methods=['POST'])
+@app.route('/apply_promo_code', methods=['POST', 'GET'])
 def apply_promo_code():
     user_id = get_user_id()
     username = first_name = last_name = None
+    if request.method != 'POST':
+        abort(500)
     if user_id:
         username = get_email(user_id)
         first_name, last_name = get_fullname(user_id)
-    global CVV
-    global card_num
-    global expiry_date
-    global total_price
-    global promo_in_rub
-    global paypal_mail
-    global new_total_price
     error_message = None
     success_message = None
     data = get_info()
@@ -307,16 +288,26 @@ def apply_promo_code():
     if data:
         if 'paypal' in data:
             paypal_mail = data[0]
+            card_num = None
+            CVV = None
+            expiry_date = None
         else:
-            card_num, CVV, expiry_date = data
+            paypal_mail = None
+            card_num = data[0]
+            CVV = data[1]
+            expiry_date = data[2]
     else:
         paypal_mail = None
-    new_total_price = total_price
+        card_num = None
+        CVV = None
+        expiry_date = None
+    new_total_price = session.get('total_price', 0)
+    promo_in_rub = 0
     promo_code = request.form.get('promo_code')
     try:
         if PROMO[promo_code.lower()]:
             new_discount = int(PROMO[promo_code])
-            promo_in_rub = round(total_price * (new_discount / 100), 2)
+            promo_in_rub = round(new_total_price * (new_discount / 100), 2)
             success_message = f'Промокод на скидку {new_discount}% успешно активирован'
     except KeyError:
         error_message = 'Введен некорректный промокод'
@@ -324,8 +315,15 @@ def apply_promo_code():
         new_discount = 0
 
     new_total_price -= promo_in_rub
+    session['CVV'] = CVV
+    session['card_num'] = card_num
+    session['expiry_date'] = expiry_date
+    session['promo_in_rub'] = promo_in_rub
+    session['paypal_mail'] = paypal_mail
+    session['new_total_price'] = new_total_price
     return render_template('testpayment.html', discount=new_discount, total_price=new_total_price,
-                           promo_in_rub=promo_in_rub, cart_items=[cart_items], user_id=user_id, username=username,
+                           promo_in_rub=promo_in_rub, cart_items=session.get('cart_items'), user_id=user_id,
+                           username=username,
                            CVV=CVV, first_name=first_name, last_name=last_name,
                            expiry_date=expiry_date, card_num=card_num, paypal_mail=paypal_mail,
                            error_message=error_message, success_message=success_message)
@@ -359,9 +357,6 @@ def send_payment_confirmation_email(recipient_email, price):
 
 @app.route('/payment', methods=['GET', 'POST'])
 def payment():
-    global total_price
-    global cart_items
-    global promo_in_rub
     user_id = get_user_id()
     username = first_name = last_name = None
     if user_id:
@@ -369,23 +364,24 @@ def payment():
         first_name, last_name = get_fullname(user_id)
     discount = 0
     if user_id is None:
-        error_message = 'Ошибка: Для оплаты необходимо выполнить вход.'
-        return render_template('testpayment.html', user_id=user_id, username=username, error_message=error_message,
-                               none=None, first_name=first_name, last_name=last_name)
+        abort(401)
 
     if request.method == 'POST':
-        return render_template('testpayment.html', user_id=user_id, username=username, total_price=total_price,
-                               cart_items=[cart_items], first_name=first_name, last_name=last_name,
-                               discount=discount, promo_in_rub=promo_in_rub)
+        return render_template('testpayment.html', user_id=user_id, username=username,
+                               total_price=session.get('total_price', 0),
+                               cart_items=session.get('cart_items'), first_name=first_name, last_name=last_name,
+                               discount=discount, promo_in_rub=session.get('promo_in_rub', 0))
 
-    return render_template('testpayment.html', total_price=total_price, username=username,
+    return render_template('testpayment.html', total_price=session.get('total_price', 0), username=username,
                            user_id=user_id, first_name=first_name, last_name=last_name)
 
 
-@app.route('/add_to_cart', methods=['POST'])
+@app.route('/add_to_cart', methods=['POST', 'GET'])
 def add_to_cart():
     user_id = get_user_id()
     username = first_name = last_name = None
+    if request.method != 'POST':
+        abort(500)
     if user_id:
         username = get_email(user_id)
         first_name, last_name = get_fullname(user_id)
@@ -455,17 +451,19 @@ def logout():
 def profile():
     user_id = get_user_id()
     username = get_email(user_id)
-    first_name, last_name = get_fullname(user_id)
-    user = User.query.get(user_id)  # Получаем объект пользователя из базы данных
-    print(user.avatar)
-    if not user.avatar or not os.listdir('static/images/avatars'):
-        user.avatar = '../default_avatar.jpg'
-    if request.method == 'POST':
-        return redirect(url_for('profile'))
+    if user_id:
+        first_name, last_name = get_fullname(user_id)
+        user = User.query.get(user_id)  # Получаем объект пользователя из базы данных
+        if not user.avatar or not os.listdir('static/images/avatars'):
+            user.avatar = '../default_avatar.jpg'
+        if request.method == 'POST':
+            return redirect(url_for('profile'))
 
-    return render_template('profile.html', user_id=user_id, username=username,
-                           user=user, first_name=first_name,
-                           last_name=last_name)  # Передаем объект пользователя в шаблон
+        return render_template('profile.html', user_id=user_id, username=username,
+                               user=user, first_name=first_name,
+                               last_name=last_name)  # Передаем объект пользователя в шаблон
+    if user_id is None:
+        abort(401)
 
 
 def delete_old_avatar(folder_path):
@@ -478,9 +476,11 @@ def delete_old_avatar(folder_path):
         os.remove(os.path.join(folder_path, files[0]))
 
 
-@app.route('/update_profile', methods=['POST'])
+@app.route('/update_profile', methods=['POST', 'GET'])
 def update_profile():
     user_id = get_user_id()
+    if request.method != 'POST':
+        abort(500)
     if user_id:
         user = User.query.get(user_id)
         if user:
@@ -544,4 +544,4 @@ def unauthorized(error):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    app.run(debug=False)
